@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('balance_transactions', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->enum('type', ['deposit','withdraw','fee']);
+            $table->decimal('amount', 24, 8);
+            $table->enum('status', ['pending','confirmed','failed'])->default('pending');
+            $table->text('note')->nullable();
             $table->timestamps();
         });
     }
