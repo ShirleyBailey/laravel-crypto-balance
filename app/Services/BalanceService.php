@@ -9,22 +9,41 @@ use Exception;
 
 class BalanceService
 {
-    // Create a deposit (pending by default)
-    public function deposit(int $userId, float $amount, ?string $note = null): BalanceTransaction
+
+    public function deposit(int $userId, float $amount, string $note = ''): void
     {
-        return DB::transaction(function() use ($userId, $amount, $note) {
-            $balance = UserBalance::firstOrCreate(['user_id' => $userId]);
+        if ($amount <= 0) {
+            throw new Exception("Deposit amount must be positive");
+        }
 
-            // Create a pending transaction
-            $tx = BalanceTransaction::create([
+        DB::transaction(function () use ($userId, $amount, $note) {
+            // Lock user balance row for update
+            $balance = DB::table('user_balances')->where('user_id', $userId)->lockForUpdate()->first();
+
+            if ($balance) {
+                $newBalance = $balance->balance + $amount;
+                DB::table('user_balances')->where('user_id', $userId)->update([
+                    'balance' => $newBalance,
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('user_balances')->insert([
+                    'user_id' => $userId,
+                    'balance' => $amount,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            // Log transaction
+            DB::table('transactions')->insert([
                 'user_id' => $userId,
-                'type' => 'deposit',
-                'amount' => $amount,
-                'status' => 'pending',
-                'note' => $note
+                'type'    => 'deposit',
+                'amount'  => $amount,
+                'note'    => $note,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
-
-            return $tx;
         });
     }
 
@@ -50,42 +69,56 @@ class BalanceService
     }
 
     // Withdraw with optional fee
-    public function withdraw(int $userId, float $amount, float $fee = 0, ?string $note = null): BalanceTransaction
+    public function withdraw(int $userId, float $amount, float $fee = 0.0, string $note = ''): void
     {
-        return DB::transaction(function() use ($userId, $amount, $fee, $note) {
-            $balance = UserBalance::where('user_id', $userId)->lockForUpdate()->firstOrFail();
+        if ($amount <= 0) {
+            throw new Exception("Withdraw amount must be positive");
+        }
+
+        DB::transaction(function () use ($userId, $amount, $fee, $note) {
+            $balance = DB::table('user_balances')->where('user_id', $userId)->lockForUpdate()->first();
+
+            if (!$balance) {
+                throw new Exception("User balance not found");
+            }
+
             $total = $amount + $fee;
 
             if ($balance->balance < $total) {
-                throw new Exception('Insufficient funds');
+                throw new Exception("Insufficient balance");
             }
 
-            $balance->balance -= $total;
-            $balance->save();
+            $newBalance = $balance->balance - $total;
 
-            // Withdraw transaction
-            $tx = BalanceTransaction::create([
-                'user_id' => $userId,
-                'type' => 'withdraw',
-                'amount' => $amount,
-                'status' => 'confirmed',
-                'note' => $note
+            DB::table('user_balances')->where('user_id', $userId)->update([
+                'balance' => $newBalance,
+                'updated_at' => now(),
             ]);
 
-            // Fee transaction
+            // Log withdraw transaction
+            DB::table('transactions')->insert([
+                'user_id' => $userId,
+                'type'    => 'withdraw',
+                'amount'  => $amount,
+                'note'    => $note,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Log fee as separate transaction (optional)
             if ($fee > 0) {
-                BalanceTransaction::create([
+                DB::table('transactions')->insert([
                     'user_id' => $userId,
-                    'type' => 'fee',
-                    'amount' => $fee,
-                    'status' => 'confirmed',
-                    'note' => 'Withdrawal fee'
+                    'type'    => 'fee',
+                    'amount'  => $fee,
+                    'note'    => 'Fee: ' . $note,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
-
-            return $tx;
         });
     }
+
 
     // Get transaction history
     public function history(int $userId)
