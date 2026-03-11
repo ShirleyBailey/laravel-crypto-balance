@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->enum('type', ['deposit','withdraw']);
+            $table->enum('type', ['deposit','withdraw','fee']);
             $table->decimal('amount', 16, 8);
             $table->string('note')->nullable();
             $table->timestamps();

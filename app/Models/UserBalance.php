@@ -11,6 +11,6 @@ class UserBalance extends Model
 
     public function transactions(): HasMany
     {
-        return $this->hasMany(BalanceTransaction::class);
+        return $this->hasMany(BalanceTransaction::class, 'user_id', 'user_id');
     }
 }

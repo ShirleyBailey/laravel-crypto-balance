@@ -47,19 +47,23 @@ class BalanceService
         });
     }
 
-    // Confirm a pending deposit
+    // Confirm a pending deposit (for records in balance_transactions)
     public function confirmDeposit(int $transactionId): BalanceTransaction
     {
-        return DB::transaction(function() use ($transactionId) {
+        return DB::transaction(function () use ($transactionId) {
             $tx = BalanceTransaction::lockForUpdate()->findOrFail($transactionId);
 
             if ($tx->status !== 'pending' || $tx->type !== 'deposit') {
                 throw new Exception('Transaction cannot be confirmed.');
             }
 
-            $balance = UserBalance::firstOrCreate(['user_id' => $tx->user_id]);
-            $balance->balance += $tx->amount;
-            $balance->save();
+            $balance = UserBalance::where('user_id', $tx->user_id)->lockForUpdate()->first();
+            if ($balance) {
+                $balance->balance += $tx->amount;
+                $balance->save();
+            } else {
+                UserBalance::create(['user_id' => $tx->user_id, 'balance' => $tx->amount]);
+            }
 
             $tx->status = 'confirmed';
             $tx->save();
@@ -120,10 +124,11 @@ class BalanceService
     }
 
 
-    // Get transaction history
+    // Get transaction history (deposits, withdrawals, fees from main ledger)
     public function history(int $userId)
     {
-        return BalanceTransaction::where('user_id', $userId)
+        return DB::table('transactions')
+            ->where('user_id', $userId)
             ->orderBy('created_at', 'desc')
             ->get();
     }

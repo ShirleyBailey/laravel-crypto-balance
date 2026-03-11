@@ -11,6 +11,6 @@ class BalanceTransaction extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(UserBalance::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

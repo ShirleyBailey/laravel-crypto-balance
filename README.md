@@ -7,6 +7,31 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Crypto Balance Module
+
+This project implements a **user crypto-balance** module (PHP + Laravel): crediting (deposits), debiting (withdrawals, fees), with DB transactions and row locking to reduce race-condition risks.
+
+### API (prefix: `/api`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/deposit` | Credit balance. Body: `user_id`, `amount`, `note` (optional) |
+| POST | `/api/withdraw` | Debit balance. Body: `user_id`, `amount`, `fee` (optional), `note` (optional) |
+| POST | `/api/deposit/confirm` | Confirm pending deposit. Body: `transaction_id` |
+| GET | `/api/balance/{userId}` | Get current balance |
+| GET | `/api/transactions/{userId}` | Get transaction history |
+
+### Run
+
+```bash
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan serve
+```
+
+---
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

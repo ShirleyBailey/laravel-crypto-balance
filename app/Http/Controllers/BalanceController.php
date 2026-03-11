@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Requests\DepositRequest;
 use App\Services\BalanceService;
 use Exception;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 class BalanceController extends Controller
 {
@@ -34,9 +35,12 @@ class BalanceController extends Controller
         ]);
 
         try {
-            return $this->service->confirmDeposit($request->transaction_id);
+            $tx = $this->service->confirmDeposit($request->transaction_id);
+            return response()->json(['status' => 'success', 'transaction' => $tx], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['error' => 'Transaction not found.'], 404);
         } catch (Exception $e) {
-            return response(['error' => $e->getMessage()], 400);
+            return response()->json(['error' => $e->getMessage()], 400);
         }
     }
 
@@ -45,12 +49,18 @@ class BalanceController extends Controller
         $request->validate([
             'user_id' => 'required|integer|exists:users,id',
             'amount'  => 'required|numeric|min:0.01',
+            'fee'     => 'nullable|numeric|min:0',
             'note'    => 'nullable|string|max:255',
         ]);
 
         try {
-            $this->service->withdraw($request->user_id, $request->amount, $request->note ?? '');
-            // <- HERE change
+            $fee = (float) ($request->input('fee', 0) ?: 0);
+            $this->service->withdraw(
+                $request->user_id,
+                $request->amount,
+                $fee,
+                $request->note ?? ''
+            );
             return response()->json(['status' => 'success'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
